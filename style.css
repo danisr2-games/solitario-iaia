@@ -33,7 +33,8 @@ html, body { height: 100%; margin: 0; }
 body {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  background: radial-gradient(120% 80% at 50% 0%, #1d3d48 0%, var(--bg) 55%, #122a33 100%);
+  --felt-hi: #1d3d48; --felt-lo: #122a33;
+  background: radial-gradient(120% 80% at 50% 0%, var(--felt-hi) 0%, var(--bg) 55%, var(--felt-lo) 100%);
   color: var(--text);
   font-family: var(--font);
   overflow: hidden;
@@ -47,7 +48,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* HUD */
 .hud {
-  display: flex; justify-content: center; gap: 28px;
+  display: flex; justify-content: center; gap: 20px;
   padding: 8px 16px 4px;
 }
 .hud-item { display: flex; flex-direction: column; align-items: center; min-width: 64px; }
@@ -149,15 +150,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Toolbar */
 .toolbar {
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   background: var(--surface);
   border-top: 1px solid var(--border);
   padding: 4px 8px calc(4px + env(safe-area-inset-bottom));
 }
 .tool {
+  position: relative;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  background: none; border: 0; padding: 8px 4px; min-height: 56px;
-  font-size: 12px; font-weight: 500; color: var(--text-muted);
+  background: none; border: 0; padding: 8px 2px; min-height: 56px;
+  font-size: 11px; font-weight: 500; color: var(--text-muted);
   border-radius: var(--r-md);
 }
 .tool-icon { font-size: 20px; line-height: 24px; color: var(--text); }
@@ -237,7 +239,122 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .win-summary { color: var(--text-muted); margin: 0 0 8px; font-size: 15px; line-height: 22px; }
 .win-record { color: var(--success); font-weight: 700; margin: 0 0 12px; }
 
+/* ---------- coins ---------- */
+.coin {
+  display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  margin-right: 4px; vertical-align: -1px;
+  background: radial-gradient(circle at 35% 30%, #ffe3a1 0 25%, var(--accent) 26% 70%, #c98a1c 71%);
+  box-shadow: inset 0 0 0 1.5px #b07614;
+}
+.coin.big { width: 28px; height: 28px; margin: 0; }
+.hud .coins { background: none; border: 0; padding: 0; cursor: pointer; }
+.hud .coins .hud-value { color: var(--accent); }
+.coins.bump .hud-value { animation: bump 500ms var(--ease); }
+@keyframes bump { 30% { transform: scale(1.25); } }
+
+.badge {
+  position: absolute; top: 4px; right: calc(50% - 22px);
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill);
+  background: var(--accent); color: var(--on-accent);
+  font-size: 11px; line-height: 18px; font-weight: 700;
+}
+.badge.empty { background: var(--border); color: var(--text-muted); }
+.tool.active { background: rgba(240,180,74,.14); }
+.tool.active .tool-icon { color: var(--accent); }
+
+.card.peeking .face { display: block; outline: 3px solid var(--accent); outline-offset: -1px; }
+.card.peeking .back { display: none; }
+.table.peek-mode .card.down { cursor: zoom-in; }
+
+.win-coins {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 28px; line-height: 34px; font-weight: 700; color: var(--accent);
+  margin: 4px 0 4px;
+}
+.win-breakdown { color: var(--text-muted); font-size: 13px; line-height: 18px; margin: 0 0 16px; }
+.win .row .btn-ghost { flex: 0 0 auto; }
+
+/* ---------- shop ---------- */
+.shop { max-height: calc(100dvh - 32px); flex-direction: column; }
+.shop[open] { display: flex; }
+.shop-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.shop-head h2 { margin: 0; }
+.wallet { font-size: 18px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg); padding: 4px; border-radius: var(--r-pill); margin-bottom: 12px; }
+.tabs button { background: none; border: 0; border-radius: var(--r-pill); padding: 8px; font-weight: 600; color: var(--text-muted); }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); }
+.shop-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.shop-group { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin: 8px 4px 0; }
+.shop-item {
+  display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center;
+  background: var(--bg); border-radius: var(--r-md); padding: 10px 12px;
+}
+.shop-item h3 { margin: 0; font-size: 15px; line-height: 20px; }
+.shop-item p { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--text-muted); }
+.shop-item .owned-count { color: var(--accent); font-weight: 600; }
+.thumb { width: 44px; height: 44px; border-radius: var(--r-sm); display: grid; place-items: center; font-size: 22px; }
+.thumb.icon { background: var(--surface); color: var(--accent); }
+.thumb.back-swatch { width: 32px; height: 44px; justify-self: center; border: 2px solid var(--card); }
+.thumb.table-swatch { border: 1px solid var(--border); }
+.thumb.deck-swatch { background: var(--card); font-size: 15px; font-weight: 700; gap: 0; grid-template-columns: 1fr 1fr; }
+.buy {
+  min-width: 76px; min-height: 36px; border-radius: var(--r-pill); border: 0;
+  background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 14px; padding: 0 12px;
+  display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
+}
+.buy .coin { width: 12px; height: 12px; }
+.buy:disabled { background: var(--border); color: var(--text-muted); cursor: default; }
+.buy.equip { background: none; border: 1px solid var(--border-input); color: var(--text); }
+.buy.equipped { background: none; border: 1px solid var(--success); color: var(--success); }
+.shop-foot { margin: 0 0 12px; }
+
+/* ---------- card backs (shop) ---------- */
+.back-classic .back, .back-swatch.back-classic {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 5px, rgba(255,255,255,.07) 5px 6px),
+    repeating-linear-gradient(-45deg, transparent 0 5px, rgba(255,255,255,.07) 5px 6px),
+    linear-gradient(160deg, #2a6170, #1f4d59);
+}
+.back-ember .back, .back-swatch.back-ember {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,214,170,.18) 6px 7px),
+    repeating-linear-gradient(-45deg, transparent 0 6px, rgba(255,214,170,.18) 6px 7px),
+    linear-gradient(160deg, #a8402b, #6f2419);
+}
+.back-night .back, .back-swatch.back-night {
+  background:
+    radial-gradient(circle at 20% 25%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 40%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 40% 75%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 85% 85%, #fff 0 .8px, transparent 1.3px),
+    linear-gradient(160deg, #23305e, #121a38);
+  background-size: 18px 18px, 22px 22px, 26px 26px, 14px 14px, 100% 100%;
+}
+.back-gold .back, .back-swatch.back-gold {
+  background:
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 4px, rgba(255,255,255,.22) 4px 5px),
+    linear-gradient(160deg, #e8b44f, #a8741c);
+}
+
+/* ---------- tables (shop) ---------- */
+body.table-forest { --bg: #17392a; --felt-hi: #21503b; --felt-lo: #10291e; }
+body.table-wine { --bg: #3a1720; --felt-hi: #52222e; --felt-lo: #2a1017; }
+body.table-slate { --bg: #2a2e33; --felt-hi: #3a3f45; --felt-lo: #1f2226; }
+.table-swatch.table-dusk { background: linear-gradient(160deg, #1d3d48, #16313b); }
+.table-swatch.table-forest { background: linear-gradient(160deg, #21503b, #17392a); }
+.table-swatch.table-wine { background: linear-gradient(160deg, #52222e, #3a1720); }
+.table-swatch.table-slate { background: linear-gradient(160deg, #3a3f45, #2a2e33); }
+
+/* ---------- four-colour deck (shop) ---------- */
+body.four-color .card.suit-C .face { color: #1f7a3a; }
+body.four-color .card.suit-D .face { color: #1f5fb3; }
+.deck-swatch .c { color: #1f7a3a; } .deck-swatch .d { color: #1f5fb3; }
+.deck-swatch .h { color: var(--card-red); } .deck-swatch .s { color: var(--card-black); }
+
 @media (prefers-reduced-motion: reduce) {
   .card { transition-duration: 1ms; }
   .card.shake { animation: none; }
 }
+
+/* Items you can't afford yet stay tappable (they say how much is missing) but look dimmed. */
+.buy[aria-disabled="true"] { opacity: .45; }

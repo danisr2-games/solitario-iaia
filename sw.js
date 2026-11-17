@@ -1,10 +1,11 @@
 /* Calma · offline cache. Bump VERSION whenever a file below changes. */
-const VERSION = "calma-v1";
+const VERSION = "calma-v2";
 const FILES = [
   "./",
   "index.html",
   "style.css",
   "js/game.js",
+  "js/economy.js",
   "js/ui.js",
   "manifest.webmanifest",
   "icons/icon-192.png",

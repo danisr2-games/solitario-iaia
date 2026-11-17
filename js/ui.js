@@ -1,17 +1,20 @@
-/* Calma · table, input, storage. Rules live in game.js. */
+/* Calma · table, input, storage, shop. Rules live in game.js, coins and shop in economy.js. */
 (function () {
   "use strict";
 
   var K = window.Klondike;
+  var E = window.Economy;
   var SUIT = { S: "♠︎", H: "♥︎", D: "♦︎", C: "♣︎" };
   var RANK = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
-  var KEY = { game: "calma.game", stats: "calma.stats", prefs: "calma.prefs" };
+  var KEY = { game: "calma.game", stats: "calma.stats", prefs: "calma.prefs", profile: "calma.profile" };
+  var PEEK_MS = 1500;
   var DRAG_THRESHOLD = 8;
 
   var $ = function (id) { return document.getElementById(id); };
   var table = $("table");
 
-  var state, prefs, stats, L;
+  var state, prefs, stats, profile, L;
+  var peekMode = false, shopTab = "help";
   var els = {}, slots = {}, where = {}, lastRef = {};
   var drag = null, hintTimer = null, zTimer = null, autoRunning = false;
   var runningSince = null, tick = null;
@@ -26,6 +29,7 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* storage full or blocked */ }
   }
   function defaultStats() { return { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, bestScore: 0 }; }
+  function saveProfile() { write(KEY.profile, profile); }
 
   function validGame(s) {
     try {
@@ -68,6 +72,8 @@
   function freshGame(seed) {
     var s = K.deal(seed, prefs.drawCount);
     s.elapsedMs = 0; s.counted = false; s.done = false;
+    s.hintsUsed = 0;      // free hints used in this game
+    s.restarted = false;  // a replayed deal pays half the coins
     return s;
   }
 
@@ -85,6 +91,7 @@
     var sameGame = state.counted && !state.done;
     state = freshGame(state.seed);
     state.counted = sameGame;
+    state.restarted = true;
     afterDeal();
   }
 
@@ -122,8 +129,22 @@
     if (!stats.bestTimeMs || t < stats.bestTimeMs) { record = stats.won > 1; stats.bestTimeMs = t; }
     if (sc > stats.bestScore) { record = record || stats.won > 1; stats.bestScore = sc; }
     write(KEY.stats, stats);
-    $("win-summary").textContent = fmtTime(t) + " · " + state.moves + " moviments · " + sc + " punts";
+
+    var pay = E.coinsForWin(t, { drawCount: state.drawCount, boost: !!profile.upgrades.coinBoost, restarted: !!state.restarted });
+    E.addCoins(profile, pay.total);
+    saveProfile();
+    state.coinsWon = pay.total;
+    var parts = [pay.base + " por ganar", pay.speed + " por rapidez"];
+    var why = [];
+    if (state.drawCount === 3) why.push("×1,5 por 3 cartas");
+    if (profile.upgrades.coinBoost) why.push("×1,25 bolsa de la suerte");
+    if (state.restarted) why.push("×0,5 partida repetida");
+    $("win-coins").textContent = pay.total;
+    $("win-breakdown").textContent = parts.join(" + ") + (why.length ? " · " + why.join(" · ") : "");
+
+    $("win-summary").textContent = fmtTime(t) + " · " + state.moves + " movimientos · " + sc + " puntos";
     $("win-record").hidden = !record;
+    bumpCoins();
     updateFinish();
     setTimeout(function () { openDialog("dlg-win"); }, 450);
   }
@@ -138,7 +159,7 @@
 
   function doDraw() {
     if (state.done || autoRunning) return;
-    if (!K.draw(state)) { toast("No queden cartes al munt"); return; }
+    if (!K.draw(state)) { toast("No quedan cartas en el mazo"); return; }
     changed();
   }
 
@@ -156,7 +177,7 @@
 
   function undo() {
     if (state.done || autoRunning) return;
-    if (!K.undo(state)) { toast("No hi ha res a desfer"); return; }
+    if (!K.undo(state)) { toast("No hay nada que deshacer"); return; }
     clearHint();
     render(true);
     updateHud();
@@ -167,12 +188,24 @@
     if (state.done || autoRunning) return;
     clearHint();
     var h = K.hint(state);
-    if (!h) { toast("No queden moviments. Desfés o comença una partida nova."); return; }
+    if (!h) { toast("No quedan movimientos. Deshaz o empieza una partida nueva."); return; }
+    // Pay for the hint: first the free ones of this game, then the bought ones.
+    if ((state.hintsUsed || 0) < E.freeHints(profile)) {
+      state.hintsUsed = (state.hintsUsed || 0) + 1;
+      saveGame();
+    } else if (profile.hints > 0) {
+      profile.hints--;
+      saveProfile();
+    } else {
+      toast("No te quedan pistas. Consigue más en la tienda.");
+      return;
+    }
+    updateHud();
     var marked = [];
     if (h.draw) {
       var s = state.stock;
       if (s.length) marked.push(els[s[s.length - 1].id]); else marked.push(slots.s);
-      toast(state.stock.length ? "Treu una carta del munt" : "Torna a girar el munt");
+      toast(state.stock.length ? "Saca una carta del mazo" : "Dale la vuelta al mazo");
     } else {
       K.pile(state, h.from).slice(h.index).forEach(function (c) { marked.push(els[c.id]); });
       var dst = K.pile(state, h.to);
@@ -185,6 +218,118 @@
   function clearHint() {
     clearTimeout(hintTimer);
     table.querySelectorAll(".hint").forEach(function (el) { el.classList.remove("hint"); });
+  }
+
+  /* ---------- peek (bought in the shop) ---------- */
+  function togglePeek() {
+    if (state.done || autoRunning) return;
+    if (peekMode) { setPeekMode(false); return; }
+    if (profile.peeks <= 0) { toast("No tienes vistazos. Cómpralos en la tienda."); return; }
+    var hidden = state.tableau.some(function (p) { return p.some(function (c) { return !c.up; }); });
+    if (!hidden) { toast("No queda ninguna carta boca abajo en las columnas"); return; }
+    setPeekMode(true);
+    toast("Toca una carta boca abajo para verla");
+  }
+
+  function setPeekMode(on) {
+    peekMode = on;
+    table.classList.toggle("peek-mode", on);
+    $("btn-peek").classList.toggle("active", on);
+  }
+
+  function peekAt(id) {
+    var el = els[id];
+    profile.peeks--;
+    saveProfile();
+    setPeekMode(false);
+    updateHud();
+    el.classList.add("peeking");
+    setTimeout(function () { el.classList.remove("peeking"); }, PEEK_MS);
+  }
+
+  /* ---------- coins, looks and shop ---------- */
+  function bumpCoins() {
+    updateHud();
+    var c = $("hud-coins");
+    c.classList.remove("bump");
+    void c.offsetWidth;
+    c.classList.add("bump");
+  }
+
+  function applyLook() {
+    var b = document.body;
+    E.CATALOG.forEach(function (it) {
+      if (it.kind === "back" || it.kind === "table") b.classList.remove(it.id);
+    });
+    b.classList.add(profile.equipped.back, profile.equipped.table);
+    b.classList.toggle("four-color", E.owns(profile, "fourColor") && profile.equipped.fourColor !== false);
+  }
+
+  var GROUPS = {
+    help: [["consumable", "Para esta y otras partidas"], ["upgrade", "Mejoras para siempre"]],
+    look: [["deck", "Baraja"], ["back", "Dorsos"], ["table", "Tapetes"]]
+  };
+  var ICON = { hints5: "?", hints20: "??", peek3: "◉", moreHints: "+?", coinBoost: "◈" };
+
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
+
+  function thumb(it) {
+    if (it.kind === "back") return '<span class="thumb back-swatch ' + it.id + '"></span>';
+    if (it.kind === "table") return '<span class="thumb table-swatch ' + it.id + '"></span>';
+    if (it.kind === "deck") return '<span class="thumb deck-swatch"><span class="s">♠&#xFE0E;</span><span class="h">♥&#xFE0E;</span><span class="c">♣&#xFE0E;</span><span class="d">♦&#xFE0E;</span></span>';
+    return '<span class="thumb icon">' + (ICON[it.id] || "★") + "</span>";
+  }
+
+  function priceTag(n) { return n ? '<span class="coin" aria-hidden="true"></span>' + n : "Gratis"; }
+
+  function actionButton(it) {
+    var owned = E.owns(profile, it.id);
+    if (it.kind === "back" || it.kind === "table") {
+      if (profile.equipped[it.kind] === it.id) return '<button class="buy equipped" disabled>En uso</button>';
+      if (owned) return '<button class="buy equip" data-equip="' + it.id + '">Usar</button>';
+    } else if (it.kind === "deck" && owned) {
+      var on = profile.equipped.fourColor !== false;
+      return '<button class="buy ' + (on ? "equipped" : "equip") + '" data-toggle-deck="1">' + (on ? "Activada" : "Activar") + "</button>";
+    } else if (it.kind === "upgrade" && owned) {
+      return '<button class="buy equipped" disabled>Comprada</button>';
+    }
+    var short = profile.coins < it.price;
+    return '<button class="buy" data-buy="' + it.id + '"' + (short ? ' aria-disabled="true"' : "") +
+      ' aria-label="Comprar ' + esc(it.name) + " por " + it.price + ' monedas">' + priceTag(it.price) + "</button>";
+  }
+
+  function renderShop() {
+    $("shop-coins").textContent = profile.coins;
+    document.querySelectorAll("#dlg-shop [data-tab]").forEach(function (t) {
+      t.setAttribute("aria-selected", String(t.dataset.tab === shopTab));
+    });
+    var html = "";
+    GROUPS[shopTab].forEach(function (g) {
+      html += '<p class="shop-group">' + g[1] + "</p>";
+      E.CATALOG.filter(function (it) { return it.kind === g[0]; }).forEach(function (it) {
+        var have = "";
+        if (it.id === "hints5" || it.id === "hints20") have = ' <span class="owned-count">Tienes ' + profile.hints + "</span>";
+        if (it.id === "peek3") have = ' <span class="owned-count">Tienes ' + profile.peeks + "</span>";
+        html += '<div class="shop-item">' + thumb(it) +
+          "<div><h3>" + esc(it.name) + "</h3><p>" + esc(it.desc) + have + "</p></div>" +
+          actionButton(it) + "</div>";
+      });
+    });
+    $("shop-list").innerHTML = html;
+  }
+
+  function buyItem(id) {
+    var why = E.blocker(profile, id);
+    if (why === "coins") {
+      toast("Te faltan " + (E.item(id).price - profile.coins) + " monedas");
+      return;
+    }
+    if (!E.buy(profile, id)) return;
+    saveProfile();
+    applyLook();
+    renderShop();
+    updateHud();
+    toast("Comprado: " + E.item(id).name);
   }
 
   function autoFinish() {
@@ -214,7 +359,7 @@
 
   function requestNewGame() {
     if (state.counted && !state.done && state.moves > 0 &&
-        !confirmTap("new", "Toca «Nova» un altre cop per deixar aquesta partida")) return;
+        !confirmTap("new", "Toca «Nueva» otra vez para dejar esta partida")) return;
     newGame();
   }
 
@@ -272,7 +417,7 @@
     K.SUITS.forEach(function (s) {
       for (var r = 1; r <= 13; r++) {
         var el = document.createElement("div");
-        el.className = "card" + (s === "H" || s === "D" ? " red" : "");
+        el.className = "card suit-" + s + (s === "H" || s === "D" ? " red" : "");
         el.dataset.id = s + r;
         el.innerHTML = '<div class="face"><span class="idx">' + RANK[r] + '<span class="s">' + SUIT[s] +
           '</span></span><span class="pip">' + SUIT[s] + '</span></div><div class="back"></div>';
@@ -343,6 +488,12 @@
     $("hud-moves").textContent = state.moves;
     $("hud-score").textContent = state.score;
     $("btn-undo").disabled = !state.history.length || state.done;
+    $("coins-value").textContent = profile.coins;
+    var hintsLeft = Math.max(0, E.freeHints(profile) - (state.hintsUsed || 0)) + profile.hints;
+    $("hint-badge").textContent = hintsLeft;
+    $("hint-badge").classList.toggle("empty", hintsLeft === 0);
+    $("peek-badge").textContent = profile.peeks;
+    $("peek-badge").classList.toggle("empty", profile.peeks === 0);
   }
 
   function updateFinish() {
@@ -387,6 +538,12 @@
     if (drag || autoRunning || state.done || e.button > 0) return;
     var cardEl = e.target.closest(".card");
     var slotEl = e.target.closest(".slot");
+    if (peekMode) {
+      var pk = cardEl && where[cardEl.dataset.id];
+      if (pk && pk.ref[0] === "t" && cardEl.classList.contains("down")) peekAt(cardEl.dataset.id);
+      else { setPeekMode(false); toast("Vistazo cancelado"); }
+      return;
+    }
     // The stock's spot always means "draw", even if a card on its way to the waste is passing over it.
     var tr = table.getBoundingClientRect();
     var px = e.clientX - tr.left, py = e.clientY - tr.top;
@@ -459,6 +616,7 @@
     document.querySelectorAll("dialog[open]").forEach(function (d) { if (d.id !== id) d.close(); });
     var d = $(id);
     if (id === "dlg-stats") fillStats();
+    if (id === "dlg-shop") renderShop();
     if (id === "dlg-menu") syncMenu();
     if (!d.open) d.showModal();
   }
@@ -473,22 +631,34 @@
   function fillStats() {
     var pct = stats.played ? Math.round((stats.won / stats.played) * 100) + "%" : "–";
     var tiles = [
-      ["Partides", stats.played], ["Guanyades", stats.won], ["Victòries", pct],
-      ["Ratxa", stats.streak], ["Millor ratxa", stats.bestStreak],
-      ["Millor temps", stats.bestTimeMs ? fmtTime(stats.bestTimeMs) : "–"]
+      ["Partidas", stats.played], ["Ganadas", stats.won], ["Victorias", pct],
+      ["Racha", stats.streak], ["Mejor racha", stats.bestStreak],
+      ["Mejor tiempo", stats.bestTimeMs ? fmtTime(stats.bestTimeMs) : "–"],
+      ["Monedas ganadas", profile.earned], ["Monedas", profile.coins], ["Pistas compradas", profile.hints]
     ];
     $("stats-grid").innerHTML = tiles.map(function (t) {
       return '<div class="stat"><span class="stat-value">' + t[1] + '</span><span class="stat-label">' + t[0] + "</span></div>";
     }).join("");
     $("stats-empty").hidden = stats.played > 0;
     var reset = document.querySelector('[data-action="reset-stats"]');
-    reset.textContent = "Esborra-les";
+    reset.textContent = "Borrarlas";
     armed.reset = 0;
   }
 
   document.addEventListener("click", function (e) {
-    var b = e.target.closest("[data-action], [data-draw]");
+    var b = e.target.closest("[data-action], [data-draw], [data-buy], [data-equip], [data-toggle-deck], [data-tab]");
     if (!b) return;
+    if (b.dataset.buy) { buyItem(b.dataset.buy); return; }
+    if (b.dataset.equip) {
+      if (E.equip(profile, b.dataset.equip)) { saveProfile(); applyLook(); renderShop(); }
+      return;
+    }
+    if (b.dataset.toggleDeck) {
+      profile.equipped.fourColor = profile.equipped.fourColor === false;
+      saveProfile(); applyLook(); renderShop();
+      return;
+    }
+    if (b.dataset.tab) { shopTab = b.dataset.tab; renderShop(); return; }
     var dlg = b.closest("dialog");
     if (b.dataset.draw) {
       var n = Number(b.dataset.draw);
@@ -510,6 +680,7 @@
       case "restart": dlg.close(); restartGame(); break;
       case "stats": openDialog("dlg-stats"); break;
       case "help": openDialog("dlg-help"); break;
+      case "shop": openDialog("dlg-shop"); break;
       case "reset-stats":
         if (Date.now() - armed.reset < 3000) {
           stats = defaultStats();
@@ -517,7 +688,7 @@
           fillStats();
         } else {
           armed.reset = Date.now();
-          b.textContent = "Segur? Toca de nou";
+          b.textContent = "¿Seguro? Toca otra vez";
         }
         break;
     }
@@ -539,6 +710,9 @@
   $("btn-undo").addEventListener("click", undo);
   $("btn-hint").addEventListener("click", showHint);
   $("btn-menu").addEventListener("click", function () { openDialog("dlg-menu"); });
+  $("btn-shop").addEventListener("click", function () { openDialog("dlg-shop"); });
+  $("hud-coins").addEventListener("click", function () { openDialog("dlg-shop"); });
+  $("btn-peek").addEventListener("click", togglePeek);
   $("btn-finish").addEventListener("click", autoFinish);
 
   document.addEventListener("keydown", function (e) {
@@ -568,6 +742,8 @@
   function init() {
     prefs = Object.assign({ drawCount: 1, leftHanded: false }, read(KEY.prefs, {}));
     stats = Object.assign(defaultStats(), read(KEY.stats, {}));
+    profile = E.normalize(read(KEY.profile, null));
+    applyLook();
     var saved = read(KEY.game, null);
     state = saved && validGame(saved) ? saved : freshGame();
     build();

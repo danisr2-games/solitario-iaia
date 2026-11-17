@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="ca">
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#0e232b">
-  <meta name="description" content="Solitari clàssic sense anuncis, sense compte i sense connexió.">
-  <title>Calma · Solitari</title>
+  <meta name="description" content="Solitario clásico sin anuncios, sin cuenta y sin conexión.">
+  <title>Calma · Solitario</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -13,19 +13,22 @@
 </head>
 <body>
   <header class="hud" aria-live="off">
-    <div class="hud-item"><span class="hud-label">Temps</span><span id="hud-time" class="hud-value">0:00</span></div>
-    <div class="hud-item"><span class="hud-label">Moviments</span><span id="hud-moves" class="hud-value">0</span></div>
-    <div class="hud-item"><span class="hud-label">Punts</span><span id="hud-score" class="hud-value">0</span></div>
+    <div class="hud-item"><span class="hud-label">Tiempo</span><span id="hud-time" class="hud-value">0:00</span></div>
+    <div class="hud-item"><span class="hud-label">Movimientos</span><span id="hud-moves" class="hud-value">0</span></div>
+    <div class="hud-item"><span class="hud-label">Puntos</span><span id="hud-score" class="hud-value">0</span></div>
+    <button id="hud-coins" class="hud-item coins" aria-label="Monedas, abrir la tienda"><span class="hud-label">Monedas</span><span class="hud-value"><span class="coin" aria-hidden="true"></span><span id="coins-value">0</span></span></button>
   </header>
 
-  <main id="table" class="table" aria-label="Taula de joc"></main>
+  <main id="table" class="table" aria-label="Mesa de juego"></main>
 
-  <button id="btn-finish" class="finish" hidden>Acaba-la ara</button>
+  <button id="btn-finish" class="finish" hidden>Terminar ya</button>
 
-  <nav class="toolbar" aria-label="Controls">
-    <button id="btn-new" class="tool"><span class="tool-icon" aria-hidden="true">✦</span><span>Nova</span></button>
-    <button id="btn-hint" class="tool"><span class="tool-icon" aria-hidden="true">?</span><span>Pista</span></button>
-    <button id="btn-undo" class="tool"><span class="tool-icon" aria-hidden="true">↶</span><span>Desfés</span></button>
+  <nav class="toolbar" aria-label="Controles">
+    <button id="btn-new" class="tool"><span class="tool-icon" aria-hidden="true">✦</span><span>Nueva</span></button>
+    <button id="btn-hint" class="tool"><span class="tool-icon" aria-hidden="true">?</span><span>Pista</span><span id="hint-badge" class="badge">3</span></button>
+    <button id="btn-undo" class="tool"><span class="tool-icon" aria-hidden="true">↶</span><span>Deshacer</span></button>
+    <button id="btn-peek" class="tool"><span class="tool-icon" aria-hidden="true">◉</span><span>Vistazo</span><span id="peek-badge" class="badge">0</span></button>
+    <button id="btn-shop" class="tool"><span class="tool-icon" aria-hidden="true">◈</span><span>Tienda</span></button>
     <button id="btn-menu" class="tool"><span class="tool-icon" aria-hidden="true">≡</span><span>Menú</span></button>
   </nav>
 
@@ -34,57 +37,82 @@
   <dialog id="dlg-menu" class="sheet">
     <h2>Menú</h2>
     <div class="menu-list">
-      <button data-action="new" class="menu-btn">Partida nova</button>
-      <button data-action="restart" class="menu-btn">Torna a començar aquesta partida</button>
+      <button data-action="new" class="menu-btn">Partida nueva</button>
+      <button data-action="restart" class="menu-btn">Volver a empezar esta partida</button>
       <div class="menu-row">
-        <span>Cartes per torn</span>
-        <div class="seg" role="radiogroup" aria-label="Cartes per torn">
+        <span>Cartas por turno</span>
+        <div class="seg" role="radiogroup" aria-label="Cartas por turno">
           <button data-draw="1" role="radio">1</button>
           <button data-draw="3" role="radio">3</button>
         </div>
       </div>
-      <p id="draw-note" class="note" hidden>S'aplicarà a la propera partida.</p>
+      <p id="draw-note" class="note" hidden>Se aplicará en la próxima partida.</p>
       <label class="menu-row">
-        <span>Mode per a esquerrans</span>
+        <span>Modo para zurdos</span>
         <input type="checkbox" id="opt-left" class="switch">
       </label>
-      <button data-action="stats" class="menu-btn">Estadístiques</button>
-      <button data-action="help" class="menu-btn">Com es juga</button>
+      <button data-action="shop" class="menu-btn">Tienda</button>
+      <button data-action="stats" class="menu-btn">Estadísticas</button>
+      <button data-action="help" class="menu-btn">Cómo se juega</button>
     </div>
-    <button data-action="close" class="btn-primary">Tanca</button>
+    <button data-action="close" class="btn-primary">Cerrar</button>
+  </dialog>
+
+  <dialog id="dlg-shop" class="sheet shop">
+    <div class="shop-head">
+      <h2>Tienda</h2>
+      <span class="wallet"><span class="coin" aria-hidden="true"></span><span id="shop-coins">0</span></span>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="help" aria-selected="true">Ventajas</button>
+      <button role="tab" data-tab="look" aria-selected="false">Aspecto</button>
+    </div>
+    <div id="shop-list" class="shop-list"></div>
+    <p class="note shop-foot">Ganas monedas al terminar una partida: cuanto más rápido, más monedas.</p>
+    <button data-action="close" class="btn-primary">Cerrar</button>
   </dialog>
 
   <dialog id="dlg-stats" class="sheet">
-    <h2>Estadístiques</h2>
+    <h2>Estadísticas</h2>
     <div id="stats-grid" class="stats-grid"></div>
-    <p id="stats-empty" class="note">Encara no has jugat cap partida.</p>
+    <p id="stats-empty" class="note">Todavía no has jugado ninguna partida.</p>
     <div class="row">
-      <button data-action="reset-stats" class="btn-ghost">Esborra-les</button>
-      <button data-action="close" class="btn-primary">Tanca</button>
+      <button data-action="reset-stats" class="btn-ghost">Borrarlas</button>
+      <button data-action="close" class="btn-primary">Cerrar</button>
     </div>
   </dialog>
 
   <dialog id="dlg-help" class="sheet">
-    <h2>Com es juga</h2>
+    <h2>Cómo se juega</h2>
     <div class="help">
-      <p>Puja totes les cartes a les quatre piles de dalt a la dreta, de l'as al rei i del mateix pal.</p>
-      <p>A les set columnes, posa cada carta sobre una d'un número més alt i de l'altre color: un 7 vermell sobre un 8 negre. En una columna buida només hi va un rei.</p>
-      <p>Toca el munt de dalt a l'esquerra per treure cartes. Quan s'acaba, toca'l un altre cop per tornar a girar les que has tret.</p>
-      <p><strong>Toca</strong> una carta i anirà sola al millor lloc. També la pots <strong>arrossegar</strong>.</p>
-      <p>Quan totes les cartes estan girades, apareix <em>Acaba-la ara</em>.</p>
+      <p>Sube todas las cartas a las cuatro pilas de arriba a la derecha, del as al rey y del mismo palo.</p>
+      <p>En las siete columnas, pon cada carta sobre una de un número más alto y del otro color: un 7 rojo sobre un 8 negro. En una columna vacía solo puede ir un rey.</p>
+      <p>Toca el mazo de arriba a la izquierda para sacar cartas. Cuando se acabe, tócalo otra vez para darles la vuelta.</p>
+      <p><strong>Toca</strong> una carta y irá sola al mejor sitio. También puedes <strong>arrastrarla</strong>.</p>
+      <p><strong>Monedas:</strong> al ganar te llevas 20 monedas más 1 por cada 4 segundos por debajo de 10 minutos. Con 3 cartas por turno ganas un 50 % más; si vuelves a empezar la misma partida, la mitad.</p>
+      <p>Cada partida trae pistas gratis. En la <strong>tienda</strong> puedes comprar más pistas, vistazos para mirar una carta boca abajo, mejoras y nuevos dorsos y tapetes.</p>
     </div>
-    <button data-action="close" class="btn-primary">D'acord</button>
+    <button data-action="close" class="btn-primary">Entendido</button>
   </dialog>
 
   <dialog id="dlg-win" class="sheet win">
     <p class="win-mark" aria-hidden="true">♥ ♣ ♦ ♠</p>
-    <h2>Ho has aconseguit!</h2>
+    <h2>¡Lo has conseguido!</h2>
     <p id="win-summary" class="win-summary"></p>
-    <p id="win-record" class="win-record" hidden>Nou rècord</p>
-    <button data-action="new" class="btn-primary">Una altra</button>
+    <div class="win-coins">
+      <span class="coin big" aria-hidden="true"></span>
+      <span>+<span id="win-coins">0</span></span>
+    </div>
+    <p id="win-breakdown" class="win-breakdown"></p>
+    <p id="win-record" class="win-record" hidden>Nuevo récord</p>
+    <div class="row">
+      <button data-action="shop" class="btn-ghost">Tienda</button>
+      <button data-action="new" class="btn-primary">Otra</button>
+    </div>
   </dialog>
 
   <script src="js/game.js"></script>
+  <script src="js/economy.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>
