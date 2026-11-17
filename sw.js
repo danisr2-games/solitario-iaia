@@ -1,5 +1,5 @@
-/* Calma · offline cache. Bump VERSION whenever a file below changes. */
-const VERSION = "calma-v2";
+/* Solitario Iaia · offline cache. Bump VERSION whenever a file below changes. */
+const VERSION = "iaia-v3";
 const FILES = [
   "./",
   "index.html",

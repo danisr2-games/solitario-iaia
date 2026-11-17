@@ -1,5 +1,5 @@
 /*
- * Calma · coins and shop. Pure logic, no DOM: works in the browser (window.Economy) and in Node.
+ * Solitario Iaia · coins and shop. Pure logic, no DOM: works in the browser (window.Economy) and in Node.
  *
  * Profile (stored on the phone):
  *   { coins, earned, hints, peeks, owned: [ids], equipped: { back, table }, upgrades: { ids: true } }
@@ -30,7 +30,7 @@
 
     { id: "fourColor", kind: "deck", price: 250, name: "Baraja de 4 colores", desc: "Tréboles verdes y diamantes azules: se distinguen de un vistazo." },
 
-    { id: "back-classic", kind: "back", price: 0, name: "Dorso Calma", desc: "El de siempre." },
+    { id: "back-classic", kind: "back", price: 0, name: "Dorso Clásico", desc: "El de siempre." },
     { id: "back-ember", kind: "back", price: 150, name: "Dorso Brasa", desc: "Rojo cálido con rombos." },
     { id: "back-night", kind: "back", price: 200, name: "Dorso Noche", desc: "Azul oscuro con estrellas." },
     { id: "back-gold", kind: "back", price: 400, name: "Dorso Oro", desc: "Para los que ganan mucho." },

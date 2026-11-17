@@ -1,4 +1,4 @@
-/* Calma · table, input, storage, shop. Rules live in game.js, coins and shop in economy.js. */
+/* Solitario Iaia · table, input, storage, shop. Rules live in game.js, coins and shop in economy.js. */
 (function () {
   "use strict";
 

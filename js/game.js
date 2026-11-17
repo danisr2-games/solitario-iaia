@@ -1,5 +1,5 @@
 /*
- * Calma · Klondike rules engine.
+ * Solitario Iaia · Klondike rules engine.
  * Pure logic, no DOM: works in the browser (window.Klondike) and in Node (require).
  *
  * Pile refs: "s" stock, "w" waste, "f0".."f3" foundations, "t0".."t6" tableau.
